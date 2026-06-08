@@ -1,4 +1,3 @@
-"""Загрузка и нарезка спрайтов."""
 import os
 import pygame
 import config as C
@@ -21,10 +20,6 @@ def load_image(name):
 
 
 def slice_strip(name, fw, fh, count=None, scale=1.0, row=0):
-    """Нарезать горизонтальную полосу кадров (одна строка).
-
-    Если count не задан — считается автоматически как ширина листа // fw.
-    """
     sheet = load_image(name)
     if count is None:
         count = max(1, sheet.get_width() // fw)
@@ -41,7 +36,6 @@ def slice_strip(name, fw, fh, count=None, scale=1.0, row=0):
 
 
 def slice_grid(name, fw, fh, indices, scale=1.0):
-    """Нарезать кадры из сетки по индексам (чтение слева-направо, сверху-вниз)."""
     sheet = load_image(name)
     cols = sheet.get_width() // fw
     frames = []
@@ -59,7 +53,6 @@ def slice_grid(name, fw, fh, indices, scale=1.0):
 
 
 def tint(frames, color):
-    """Подкрасить список кадров (умножение цвета), сохраняя альфу."""
     out = []
     for f in frames:
         nf = f.copy()
@@ -75,7 +68,6 @@ def flip(frames):
 
 
 def bottom_pad(surf):
-    """Сколько полностью прозрачных строк снизу у кадра (отступ под ногами)."""
     try:
         m = pygame.mask.from_surface(surf, 1)
     except Exception:
@@ -94,9 +86,6 @@ def scale_bg(name, size):
 
 
 def get_inner_bbox(surface, inset=6):
-    """Return bounding Rect of non-transparent pixels, inset by `inset`.
-    Coordinates are relative to the surface (0,0).
-    """
     try:
         mask = pygame.mask.from_surface(surface)
     except Exception:
@@ -117,7 +106,6 @@ def get_inner_bbox(surface, inset=6):
                     maxy = y
     if maxx == -1:
         return pygame.Rect(0, 0, 0, 0)
-    # apply inset
     minx += inset
     miny += inset
     maxx -= inset
@@ -127,25 +115,28 @@ def get_inner_bbox(surface, inset=6):
     return pygame.Rect(minx, miny, maxx - minx + 1, maxy - miny + 1)
 
 
-# --------- Готовые наборы анимаций ----------
 PLAYER_DIR = "assets_player"
-BOSS_FALLBACK = "assets_boss1"   # заглушка для пустых папок боссов (боец 1-й лок.)
+BOSS_FALLBACK = "assets_boss1"
 
 
 def load_player_anims():
     s = C.PLAYER_SCALE
     d = PLAYER_DIR + "/"
-    return {
+    anims = {
         "idle":    slice_grid(d + "idle.png", 60, 60, [0, 1, 2], s),
         "run":     slice_strip(d + "run.png", 60, 60, None, s),
         "attack":  slice_strip(d + "attack.png", 60, 60, None, s),
         "attack2": slice_strip(d + "attack2.png", 60, 60, None, s),
         "dash":    slice_strip(d + "dash.png", 60, 60, None, s),
     }
+    try:
+        anims["parry"] = slice_strip(d + "parry.png", 60, 60, None, s)
+    except Exception:
+        anims["parry"] = anims["idle"]
+    return anims
 
 
 def load_grid_anim(folder, file, fw, fh, scale=1.0):
-    """Нарезать лист СЕТКОЙ fw x fh построчно (cols*rows кадров) и масштабировать."""
     rel = folder + "/" + file
     sheet = load_image(rel)
     W, H = sheet.get_size()
@@ -166,7 +157,6 @@ def load_grid_anim(folder, file, fw, fh, scale=1.0):
 
 
 def load_boss_spec_anims(folder):
-    """Загрузить словарь анимаций босса по config.BOSS_SPEC[folder]."""
     spec = C.BOSS_SPEC.get(folder) or C.BOSS_SPEC[BOSS_FALLBACK]
     scale = spec["scale"]
     out = {}
@@ -179,11 +169,6 @@ def load_boss_spec_anims(folder):
 
 
 def load_boss1_anims(scale):
-    """Демон boss7: ровная сетка 288x160, 22x5.
-
-    Ряды: 0=idle, 1=walk(run), 2=attack, 3=cast(спец), 4=death(hurt).
-    Берём только заполненные ячейки каждого ряда (хвост-пустышки отбрасываем).
-    """
     sheet = load_image("assets_boss7/sheet.png")
     FW, FH = 288, 160
     cols = sheet.get_width() // FW

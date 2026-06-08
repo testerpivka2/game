@@ -1,23 +1,15 @@
-"""Менеджер фоновой музыки.
-
-Ожидает готовые файлы в папке music:
-- music/main.(ogg|mp3|wav)
-- music/battle.(ogg|mp3|wav)
-"""
 import os
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 MUSIC_DIR = os.path.join(HERE, "music")
 
 
-# ---------------- менеджер ----------------
 _inited = False
 _current = None
 _volume = 0.4
 
 
 def _find(name):
-    # Совместимость со старым названием трека.
     if name == "calm":
         name = "main"
     for ext in (".ogg", ".mp3", ".wav"):
@@ -34,7 +26,6 @@ def ensure_tracks_exist():
     if not _find("battle"):
         print("music missing: expected music/battle.(ogg|mp3|wav)")
     if not _find("pause"):
-        # optional pause track
         print("music missing: optional music/pause.(ogg|mp3|wav)")
 
 
@@ -59,7 +50,6 @@ def set_volume(volume):
 
 
 def play(name, volume=None):
-    """name: 'main' или 'battle' (также поддерживается алиас 'calm')."""
     global _current
     if volume is not None:
         set_volume(volume)

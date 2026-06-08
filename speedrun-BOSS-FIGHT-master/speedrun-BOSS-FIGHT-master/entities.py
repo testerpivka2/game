@@ -1,4 +1,3 @@
-"""Игрок, Босс, Файрбол."""
 import random
 import pygame
 import config as C
@@ -30,7 +29,6 @@ class Fireball:
     def draw(self, surf):
         import math
         r = self.radius + int(math.sin(self.anim) * 2)
-        # ядро + свечение
         glow = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
         pygame.draw.circle(glow, (255, 120, 30, 80), (r * 2, r * 2), r * 2)
         pygame.draw.circle(glow, (255, 180, 60, 160), (r * 2, r * 2), r)
@@ -39,7 +37,6 @@ class Fireball:
 
 
 class Projectile:
-    """Снаряд босса. Может быть кружком-свечением или анимированным спрайтом."""
     def __init__(self, x, y, vx, vy, damage, color, radius=14, gravity=0.0,
                  life=180, frames=None, spin=False, frame_speed=0.3):
         self.x = x; self.y = y
@@ -51,10 +48,10 @@ class Projectile:
         self.life = life
         self.alive = True
         self.t = 0
-        self.frames = frames        # список кадров спрайта (или None)
+        self.frames = frames
         self.frames_l = ([pygame.transform.flip(f, True, False) for f in frames]
                          if frames else None)
-        self.spin = spin            # поворачивать спрайт по направлению полёта
+        self.spin = spin
         self.frame_speed = frame_speed
         self.anim = 0.0
 
@@ -97,7 +94,6 @@ class Projectile:
 
 
 class VFX:
-    """Одноразовый эффект-анимация (поофы появления/смерти и т.п.)."""
     def __init__(self, x, y, frames, speed=0.3):
         self.x = x
         self.y = y
@@ -121,21 +117,20 @@ class VFX:
 
 
 class Minion:
-    """Призываемый миньон: идёт к игроку, бьёт контактом, гибнет от меча/со временем."""
     def __init__(self, x, frames, damage, death_frames=None):
         self.x = x
         self.y = C.GROUND_Y
         self.frames = frames
         self.frames_l = [pygame.transform.flip(f, True, False) for f in frames]
         self.foot_pad = assets.bottom_pad(frames[0])
-        self.death_frames = death_frames     # поф при гибели
+        self.death_frames = death_frames
         self.damage = damage
         self.hp = 2
         self.speed = 3.1
         self.facing = -1
         self.anim = 0.0
         self.alive = True
-        self.life = 420          # ~7 сек, потом исчезает
+        self.life = 420
         self.hit_cd = 0
 
     @property
@@ -170,75 +165,65 @@ class Player:
         self.anims = assets.load_player_anims()
         self.anims_l = {k: assets.flip(v) for k, v in self.anims.items()}
 
-        # отступ под ногами (для выравнивания на линию пола)
         self.foot_pad = assets.bottom_pad(self.anims["idle"][0])
 
         self.max_hp = max_hp
         self.hp = max_hp
-        self.max_mana = 1
+        self.max_mana = 0
         self.mana = 0
         self.coins = 0
         self.damage = C.PLAYER_BASE_DAMAGE
         self.speed = C.PLAYER_SPEED
 
-        # позиция: x — центр, y — низ (ноги)
         self.x = 250
         self.y = C.GROUND_Y
         self.vy = 0
         self.on_ground = True
-        self.facing = 1            # 1 — вправо, -1 — влево
+        self.facing = 1
         self.crouch = False
 
-        # анимация
         self.state = "idle"
         self.frame = 0.0
         self.anim_speed = 0.15
 
-        # боевые таймеры
         self.attacking = False
         self.attack_timer = 0
         self.attack_cd = 0
-        self.hit_done = False      # нанёс ли удар в этом замахе
+        self.hit_done = False
 
         self.dashing = False
         self.dash_timer = 0
         self.dash_cd = 0
 
-        self.invuln = 0            # кадры неуязвимости
+        self.invuln = 0
         self.jumps_used = 0
 
-        # комбо: чередуем два взмаха меча (attack / attack2)
         self.attack_variant = "attack"
 
-        # лазание по стенам
         self.wall_sliding = False
-        self.wall_side = None      # 'left' или 'right'
+        self.wall_side = None
         self.wall_jump_vx = 0.0
 
-        # щит (доступен сразу, клавиша W)
         self.shield_up = False
         self.shield_timer = 0
         self.shield_cd = 0
 
-        # кулдаун файрбола
+        self.parrying = False
+        self.parry_timer = 0
+        self.parry_cd = 0
+        self.parry_success = False
+
         self.fire_cd = 0
 
-        # чит: бессмертие (клавиша R)
         self.god_mode = False
 
-        # умения
         self.skills = set()
 
-        # регены
-        self.regen_acc = 0.0
-        self.mana_regen_acc = 0.0
         self.aura_tick = 0
 
-        # аура огня: бюджет урона за цикл + пауза
         self.aura_dealt = 0.0
         self.aura_off = 0
 
-    # ---------- геометрия ----------
     @property
     def h(self):
         return 130
@@ -258,9 +243,7 @@ class Player:
             return pygame.Rect(self.x, self.y - self.h, reach, self.h)
         return pygame.Rect(self.x - reach, self.y - self.h, reach, self.h)
 
-    # ---------- действия ----------
     def jump(self):
-        # отталкивание от стены (валл-джамп) — приоритетнее обычного прыжка
         if self.wall_sliding:
             away = 1 if self.wall_side == "left" else -1
             self.vy = -C.WALL_JUMP_VY
@@ -268,7 +251,7 @@ class Player:
             self.facing = away
             self.wall_sliding = False
             self.wall_side = None
-            self.jumps_used = 1   # двойной прыжок (если есть) ещё доступен
+            self.jumps_used = 1
             return
 
         max_jumps = 2 if "double_jump" in self.skills else 1
@@ -281,13 +264,12 @@ class Player:
             self.jumps_used += 1
 
     def start_attack(self):
-        if self.attack_cd <= 0 and not self.dashing:
+        if self.attack_cd <= 0 and not self.dashing and not self.parrying:
             self.attacking = True
             self.attack_timer = 0
             self.attack_cd = C.ATTACK_COOLDOWN
             self.hit_done = False
             self.frame = 0.0
-            # чередуем взмахи: attack -> attack2 -> attack -> ...
             self.attack_variant = ("attack2"
                                    if self.attack_variant == "attack"
                                    else "attack")
@@ -300,9 +282,16 @@ class Player:
             self.invuln = C.DASH_TIME + 4
             self.frame = 0.0
 
+    def start_parry(self):
+        if "parry" in self.skills and self.parry_cd <= 0 and not self.dashing and not self.attacking:
+            self.parrying = True
+            self.parry_timer = C.PARRY_TIME
+            self.parry_cd = C.PARRY_COOLDOWN
+            self.frame = 0.0
+
     def try_fireball(self):
         if ("fireball" in self.skills and self.mana >= 1
-                and self.fire_cd <= 0 and not self.attacking):
+                and self.fire_cd <= 0 and not self.attacking and not self.parrying):
             self.mana -= 1
             self.fire_cd = C.FIREBALL_COOLDOWN
             fx = self.x + self.facing * 50
@@ -311,48 +300,51 @@ class Player:
         return None
 
     def start_shield(self):
-        if self.shield_cd <= 0 and not self.shield_up and not self.dashing:
+        if self.shield_cd <= 0 and not self.shield_up and not self.dashing and not self.parrying:
             self.shield_up = True
             self.shield_timer = C.SHIELD_TIME
 
     def shove(self, from_x, power=16, lift=7):
-        """Сильный внешний отброс игрока (например, от «юлы» босса)."""
         away = 1 if self.x >= from_x else -1
-        self.wall_jump_vx = away * power     # затухающий импульс (см. update)
+        self.wall_jump_vx = away * power
         if self.on_ground:
             self.vy = -lift
             self.on_ground = False
 
     def take_damage(self, dmg, direct=True):
-        # чит-бессмертие
         if self.god_mode:
             return False
-        # щит блокирует прямой удар, затем спадает и уходит в перезарядку
+        
+        if self.parrying and direct:
+            self.parrying = False
+            self.invuln = 60
+            self.parry_success = True
+            return False
+
         if self.shield_up and direct:
             self.shield_up = False
             self.shield_cd = C.SHIELD_COOLDOWN
             return False
         if self.invuln > 0:
             return False
+        if "resist" in self.skills:
+            dmg *= 0.8
         self.hp -= dmg
         self.invuln = 50
         if self.hp < 0:
             self.hp = 0
         return True
 
-    # ---------- обновление ----------
     def update(self, keys):
         moving = False
 
-        # рывок
         if self.dashing:
             self.x += C.DASH_SPEED * self.facing
             self.dash_timer -= 1
             if self.dash_timer <= 0:
                 self.dashing = False
         else:
-            # горизонтальное движение (работает и в воздухе — для возврата к стене)
-            if not (self.attacking and self.on_ground):
+            if not (self.attacking and self.on_ground) and not self.parrying:
                 if keys[pygame.K_LEFT]:
                     self.x -= self.speed
                     self.facing = -1
@@ -361,43 +353,37 @@ class Player:
                     self.x += self.speed
                     self.facing = 1
                     moving = True
-            self.crouch = keys[pygame.K_d] and self.on_ground
+            self.crouch = keys[pygame.K_DOWN] and self.on_ground
 
-        # остаточный толчок после отталкивания от стены (затухает)
         if self.wall_jump_vx != 0:
             self.x += self.wall_jump_vx
             self.wall_jump_vx *= C.WALL_JUMP_DECAY
             if abs(self.wall_jump_vx) < 0.4:
                 self.wall_jump_vx = 0.0
 
-        # границы арены = стены
         left = C.WALL_MARGIN
         right = C.VIRTUAL_W - C.WALL_MARGIN
         self.x = max(left, min(right, self.x))
 
-        # гравитация
         self.vy += C.GRAVITY
         self.y += self.vy
 
-        # потолок — выше верха экрана не улетаем (можно долезть до самого верха)
         if self.y - self.h < 4:
             self.y = self.h + 4
             if self.vy < 0:
                 self.vy = 0
 
-        # --- прилипание к стене и сползание ---
         self.wall_sliding = False
         if (not self.on_ground and not self.dashing and self.vy > 0):
-            at_left = self.x <= left + 2 and keys[pygame.K_LEFT]
-            at_right = self.x >= right - 2 and keys[pygame.K_RIGHT]
+            at_left = self.x <= left + 2 and keys[pygame.K_a]
+            at_right = self.x >= right - 2 and keys[pygame.K_d]
             if at_left or at_right:
                 self.wall_sliding = True
                 self.wall_side = "left" if at_left else "right"
-                # лицом от стены — так выглядит «держится за стену»
                 self.facing = 1 if at_left else -1
-                self.jumps_used = 0          # снова доступен прыжок/двойной
+                self.jumps_used = 0
                 if self.vy > C.WALL_SLIDE_SPEED:
-                    self.vy = C.WALL_SLIDE_SPEED   # медленно сползаем
+                    self.vy = C.WALL_SLIDE_SPEED
 
         if self.y >= C.GROUND_Y:
             self.y = C.GROUND_Y
@@ -408,53 +394,43 @@ class Player:
         else:
             self.on_ground = False
 
-        # таймеры
         if self.attack_cd > 0:
             self.attack_cd -= 1
         if self.dash_cd > 0:
             self.dash_cd -= 1
         if self.invuln > 0:
             self.invuln -= 1
+        if self.parry_cd > 0:
+            self.parry_cd -= 1
+        if self.parrying:
+            self.parry_timer -= 1
+            if self.parry_timer <= 0:
+                self.parrying = False
         if self.fire_cd > 0:
             self.fire_cd -= 1
-        # щит
         if self.shield_cd > 0:
             self.shield_cd -= 1
         if self.shield_up:
             self.shield_timer -= 1
             if self.shield_timer <= 0:
                 self.shield_up = False
-                self.shield_cd = C.SHIELD_COOLDOWN // 2  # если не сблокировал — короче
-
-        # атака
+                self.shield_cd = C.SHIELD_COOLDOWN // 2
         if self.attacking:
             self.attack_timer += 1
             if self.attack_timer > 18:
                 self.attacking = False
 
-        # регены (пассивные умения)
-        if "hp_regen" in self.skills and self.hp < self.max_hp:
-            self.regen_acc += 1
-            if self.regen_acc >= C.HP_REGEN_FRAMES:   # 1 HP за 3 сек
-                self.regen_acc = 0
-                self.hp = min(self.max_hp, self.hp + 1)
-        if "mana_regen" in self.skills and self.mana < self.max_mana:
-            self.mana_regen_acc += 1
-            if self.mana_regen_acc >= C.MANA_REGEN_FRAMES:  # 1 мана за 3 сек
-                self.mana_regen_acc = 0
-                self.mana = min(self.max_mana, self.mana + 1)
-
-        # таймер паузы ауры
         if self.aura_off > 0:
             self.aura_off -= 1
 
-        # выбор состояния анимации
         if self.dashing:
             self.state = "dash"
+        elif self.parrying:
+            self.state = "parry" if "parry" in self.anims else "idle"
         elif self.attacking:
-            self.state = self.attack_variant     # attack или attack2 (комбо)
+            self.state = self.attack_variant
         elif self.wall_sliding:
-            self.state = "idle"                  # поза «на стене»
+            self.state = "idle"
         elif not self.on_ground:
             self.state = "idle"
         elif moving:
@@ -462,7 +438,6 @@ class Player:
         else:
             self.state = "idle"
 
-        # продвижение кадра
         is_attack = self.state in ("attack", "attack2")
         spd = 0.4 if is_attack else self.anim_speed
         self.frame += spd
@@ -480,7 +455,6 @@ class Player:
         frame = self.current_frame()
         rect = frame.get_rect()
         rect.midbottom = (int(self.x), int(self.y) + self.foot_pad)
-        # мигание при неуязвимости
         if self.invuln > 0 and (self.invuln // 4) % 2 == 0:
             tmp = frame.copy()
             tmp.set_alpha(120)
@@ -488,7 +462,6 @@ class Player:
         else:
             surf.blit(frame, rect)
 
-        # аура огня (рисуем только когда активна, т.е. не на паузе)
         if "fire_aura" in self.skills and self.aura_off <= 0:
             self.aura_tick += 1
             import math
@@ -498,10 +471,9 @@ class Player:
             pygame.draw.circle(aura, (255, 80, 20, 40), (r, r), r - 10)
             surf.blit(aura, (self.x - r, self.y - self.h // 2 - r))
 
-        # белый слэш-индикатор перезарядки атаки: появляется и уменьшается за 1с
         if self.attack_cd > 0:
             import math
-            frac = self.attack_cd / C.ATTACK_COOLDOWN     # 1 -> 0
+            frac = self.attack_cd / C.ATTACK_COOLDOWN
             R = int(78 * frac)
             if R > 5:
                 cx = int(self.x + self.facing * 58)
@@ -520,7 +492,6 @@ class Player:
                                 a0, a1, max(1, width // 2))
                 surf.blit(slash, (cx - pad, cy - pad))
 
-        # щит — голубой пузырь
         if self.shield_up:
             import math
             cx = int(self.x)
@@ -554,16 +525,13 @@ class Boss:
         self.is_final = is_final
         self.btype = data.get("type", "melee")
 
-        # финальный демон рисуется из assets_boss7/sheet.png
         if self.btype == "demon":
             anims = assets.load_boss1_anims(scale)
         else:
-            # уникальный арт по BOSS_SPEC (сетки разных размеров)
             anims = assets.load_boss_spec_anims(data.get("art", "assets_boss1"))
         self.anims = anims
         self.anims_l = {k: assets.flip(v) for k, v in anims.items()}
         self.foot_pad = assets.bottom_pad(anims["idle"][0])
-        self.render_mirror = (self.btype == "demon")
 
         self.x = C.VIRTUAL_W - 300
         self.y = C.GROUND_Y
@@ -583,7 +551,6 @@ class Boss:
         self.dead = False
         self.death_timer = 0
 
-        # способности
         self.ability_cd = 120
         self.charging = False
         self.charge_timer = 0
@@ -594,42 +561,37 @@ class Boss:
         self.new_projectiles = []
         self.new_minions = []
         self.dodge_cd = 0
-        self.kb_vx = 0.0          # скорость отброса при попадании
-        self.melee_variant = "attack"   # чередование attack/attack2 (комбо)
-        self.melee_active = False       # активная фаза взмаха (наносит урон)
-        self.new_vfx = []         # эффекты появления/смерти миньонов
+        self.kb_vx = 0.0
+        self.melee_variant = "attack"
+        self.melee_active = False
+        self.new_vfx = []
 
-        # «юла» (skill1) и телепорт за спину
         self.spinning = False
         self.spin_timer = 0
         self.spin_anim = 0.0
         self.spin_dir = 1
-        self.spin_frames = None      # какие кадры крутить (из спека)
+        self.spin_frames = None
         self.blink_cfg = None
         self.blink_cd = 180
 
-        # рост силы со временем (boss4) и летающий портал
         self.alive_frames = 0
         self.power_level = 0
-        self.ts_cfg = None        # time_scaling config
+        self.ts_cfg = None
         self.can_fly = False
         self.flight_cfg = None
         self.flying = False
         self.flight_cd = 0
         self.flight_t = 0
-        self.energy_frames = None  # спрайт снаряда для полёта
+        self.energy_frames = None
 
-        # каст-движок
-        self.casting = None        # текущая способность-каст (dict) или None
+        self.casting = None
         self.cast_anim = "attack"
         self.cast_t = 0.0
         self.cast_fired = False
         self.beam_active = False
 
-        # способности
         self.abilities = []
         if self.btype == "demon":
-            # финальный демон: каст спец-анимации (row3) + рывок + прыжок
             self.abilities = [
                 {"kind": "demon_spread", "anim": "cast", "fire_frame": 2,
                  "cd": 85},
@@ -649,7 +611,7 @@ class Boss:
             if fl:
                 self.can_fly = True
                 self.flight_cfg = fl
-                self.flight_cd = 180        # стартовая задержка ~3с
+                self.flight_cd = 180
                 try:
                     f, fw, fh, sc = fl["proj"]
                     self.energy_frames = assets.load_grid_anim(
@@ -709,12 +671,9 @@ class Boss:
             self.death_timer = 60
 
     def knockback(self, from_x):
-        """Задать импульс отброса от точки удара (плавно затухает в update)."""
         away = 1 if self.x >= from_x else -1
-        # сумма импульса с затуханием 0.75 ≈ kb0*4 пикселей
         self.kb_vx = away * (C.HIT_KNOCKBACK / 4.0)
 
-    # ---- уворот от удара меча ----
     def can_dodge(self):
         return (self.on_ground and self.dodge_cd <= 0
                 and not self.dead and not self.charging)
@@ -726,7 +685,6 @@ class Boss:
         self.x = max(60, min(C.VIRTUAL_W - 60, self.x + away * 45))
         self.dodge_cd = 45
 
-    # ---- порождение снарядов ----
     def _proj_dmg(self):
         return 2 if self.is_final else 1
 
@@ -746,7 +704,6 @@ class Boss:
             Projectile(sx, sy, vx, vy, self._proj_dmg(), color, radius,
                        frames=frames, spin=spin, frame_speed=frame_speed))
 
-    # ---- луч (beam): хитбокс вперёд; визуал — сама анимация каста ----
     def beam_hitbox(self):
         if not self.beam_active or not self.casting:
             return None
@@ -757,9 +714,7 @@ class Boss:
             return pygame.Rect(self.x, top, reach, hh)
         return pygame.Rect(self.x - reach, top, reach, hh)
 
-    # ---- летающий портал (boss4) ----
     def end_flight(self):
-        """Сбить босса с полёта (от удара мечом): падает, откат 5с."""
         if self.flying:
             self.flying = False
             self.flight_cd = self.flight_cfg.get("cd", 300) if self.flight_cfg \
@@ -768,7 +723,6 @@ class Boss:
             self.on_ground = False
 
     def _energy_shot(self, player, base_speed, color, radius, frames):
-        """Выстрел энергией; с ростом силы — больше снарядов и быстрее."""
         import math
         count = 1 + self.power_level
         spd = base_speed * (1 + self.power_level *
@@ -789,18 +743,15 @@ class Boss:
         import math
         self.flight_t += 1
         self.facing = 1 if player.x > self.x else -1
-        # парение по всей карте: высоко <-> низко
         y_hi, y_lo = 200, C.GROUND_Y - 20
         mid = (y_hi + y_lo) / 2.0
         amp = (y_lo - y_hi) / 2.0
         self.y = mid + amp * math.sin(self.flight_t * 0.035)
         self.vy = 0
         self.on_ground = False
-        # дрейф к игроку, держим на прицеле
         if abs(player.x - self.x) > 120:
             self.x += 1.6 if player.x > self.x else -1.6
         self.x = max(70, min(C.VIRTUAL_W - 70, self.x))
-        # обстрел (чаще с ростом силы)
         interval = max(22, self.flight_cfg.get("interval", 65)
                        - self.power_level * 6)
         if self.flight_t % interval == 0:
@@ -815,7 +766,7 @@ class Boss:
         kind = ab["kind"]
         if kind == "projectile":
             col = (255, 210, 90)
-            if self.ts_cfg:        # маг: с ростом силы больше снарядов и быстрее
+            if self.ts_cfg:
                 self._energy_shot(player, ab.get("speed", 7), col,
                                   ab.get("radius", 18), ab.get("proj_frames"))
             else:
@@ -838,14 +789,12 @@ class Boss:
                     if appear:
                         self.new_vfx.append(VFX(mx, C.GROUND_Y, appear))
         elif kind == "aoe":
-            # урон по площади вокруг босса (визуал — сама анимация)
             import math
             bx, by = self.x, self.y - self.h * 0.4
             px, py = player.x, player.y - player.h * 0.5
             if math.hypot(px - bx, py - by) <= ab.get("radius", 150):
                 player.take_damage(self._proj_dmg(), direct=True)
         elif kind == "volley":
-            # веер из нескольких снарядов в сторону игрока
             import math
             frames = ab.get("proj_frames")
             sx = self.x + self.facing * 30
@@ -863,7 +812,6 @@ class Boss:
                                (190, 200, 255), ab.get("radius", 14),
                                frames=frames, spin=ab.get("spin", True)))
         elif kind == "demon_spread":
-            # широкий веер огненных шаров (финал)
             import math
             sx = self.x + self.facing * 30
             sy = self.y - int(self.h * 0.6)
@@ -876,7 +824,6 @@ class Boss:
                                (255, 120, 60), 18))
         elif kind == "demon_shot":
             self._shoot_at(player, 10, (255, 170, 70), 20)
-        # beam: урон делает beam_hitbox в main, пока beam_active
 
     def _spread(self, player, color):
         import math
@@ -912,7 +859,6 @@ class Boss:
         self.ability_cd = cd
 
     def _trigger_ability(self, player):
-        # случайная способность из набора (демон тоже использует набор)
         if not self.abilities:
             self.ability_cd = 120
             return
@@ -931,7 +877,6 @@ class Boss:
             self.spin_frames = ab.get("spin_frames")
             self.ability_cd = ab.get("cd", 420)
         else:
-            # каст: проигрываем анимацию тела, снаряд/луч/призыв в fire_frame
             self.casting = ab
             self.cast_anim = ab.get("anim", "attack")
             self.cast_t = 0.0
@@ -942,7 +887,7 @@ class Boss:
         if self.dead:
             self.death_timer -= 1
             self.flying = False
-            if self.y < C.GROUND_Y:          # упасть, если умер в воздухе
+            if self.y < C.GROUND_Y:
                 self.vy += C.GRAVITY
                 self.y = min(C.GROUND_Y, self.y + self.vy)
             ds = "death" if "death" in self.anims else "idle"
@@ -952,19 +897,16 @@ class Boss:
                 self.frame = len(self.anims[ds]) - 1
             return
 
-        # рост силы со временем (boss4): уровень за каждые period кадров жизни
         self.alive_frames += 1
         if self.ts_cfg:
             self.power_level = min(
                 self.ts_cfg.get("max_level", 6),
                 self.alive_frames // self.ts_cfg.get("period", 420))
 
-        # ПОЛЁТ на портале: парит и обстреливает, сбивается мечом (см. main)
         if self.flying:
             self._update_flight(player)
             return
 
-        # вертикальная физика (для прыгуна и общей надёжности)
         was_air = not self.on_ground
         self.vy += C.GRAVITY
         self.y += self.vy
@@ -978,9 +920,6 @@ class Boss:
         else:
             self.on_ground = False
 
-        # ПРИОРИТЕТ: отброс от удара игрока. Применяется ПЕРВЫМ и прерывает
-        # любое действие на время отдачи — босс гарантированно отлетает,
-        # неважно кастует ли он, крутится, рвётся вперёд или бьёт.
         if abs(self.kb_vx) > 0.2:
             self.x = max(60, min(C.VIRTUAL_W - 60, self.x + self.kb_vx))
             self.kb_vx *= 0.78
@@ -1001,14 +940,12 @@ class Boss:
         if self.flight_cd > 0:
             self.flight_cd -= 1
 
-        # берсерк звереет при HP < 50%
         if (self.btype == "berserk" and not self.enraged
                 and self.hp <= self.max_hp * 0.5):
             self.enraged = True
             self.move_speed = self.base_speed * 1.6
             self.attack_cd_max = int(self.attack_cd_max * 0.7)
 
-        # старт ПОЛЁТА (boss4): откат прошёл, на земле, не занят другим действием
         if (self.can_fly and self.flight_cd <= 0 and self.on_ground
                 and not self.charging and not self.casting
                 and not self.spinning and not self.attacking):
@@ -1016,7 +953,6 @@ class Boss:
             self.flight_t = 0
             return
 
-        # рывок (charger/berserk/demon)
         if self.charging:
             self.x += 13 * self.facing
             self.charge_timer -= 1
@@ -1031,15 +967,12 @@ class Boss:
             self._advance_frame()
             return
 
-        # «юла» (skill1): крутимся последними 3 кадрами, катаемся влево-вправо,
-        # контактом наносим урон и СИЛЬНО отбрасываем игрока (не залипает внутри)
         if self.spinning:
             self.spin_timer -= 1
             frames = self.anims.get("spin", self.anims["attack"])
             self.state = "spin" if "spin" in self.anims else "attack"
             self.spin_anim += 0.4
             n = len(frames)
-            # крутимся заданными кадрами размаха косы (по фото — #6,#7,#8)
             seq = [i for i in (self.spin_frames or
                                list(range(max(0, n - 6), n))) if i < n]
             if not seq:
@@ -1058,7 +991,6 @@ class Boss:
                 self.spinning = False
             return
 
-        # полный взмах в ближнем бою (анимация проигрывается целиком ~0.6с)
         if self.attacking:
             self.facing = 1 if player.x > self.x else -1
             frames = self.anims[self.melee_variant]
@@ -1072,7 +1004,6 @@ class Boss:
                 self.melee_active = False
             return
 
-        # каст способности (проигрываем анимацию тела, эффект в fire_frame)
         if self.casting:
             ab = self.casting
             self.cast_anim = ab.get("anim", "attack")
@@ -1094,9 +1025,6 @@ class Boss:
                 self.ability_cd = ab.get("cd", 140)
             return
 
-        # телепорт за спину (boss2): раз в cd кадров с шансом chance —
-        # тепается ровно за спину игрока и бьёт косой. Не накладывается на
-        # другие умения (сюда попадаем, только если не крутимся/не бьём/не кастуем).
         if self.blink_cfg and self.on_ground:
             self.blink_cd -= 1
             if self.blink_cd <= 0:
@@ -1113,14 +1041,11 @@ class Boss:
                     self.hit_done = False
                     return
 
-        # запуск способности
         if (self.ability_cd <= 0 and not self.attacking and not self.casting
                 and not self.spinning and self.on_ground
                 and self.hurt_timer == 0):
             self._trigger_ability(player)
 
-        # обычная логика боя (атака/каст/юла обрабатываются блоками выше).
-        # ВАЖНО: попадание игрока НЕ оглушает босса (супер-броня).
         if not self.on_ground:
             if "jump" in self.anims:
                 self.state = "jump"
@@ -1140,7 +1065,6 @@ class Boss:
                     self.attack_timer = 0
                     self.attack_cd = self.attack_cd_max
                     self.hit_done = False
-                    # чередуем взмахи (комбо), если есть attack2
                     if "attack2" in self.anims:
                         self.melee_variant = ("attack2"
                                               if self.melee_variant == "attack"
@@ -1157,16 +1081,12 @@ class Boss:
             self.frame = 0.0
 
     def current_frame(self):
-        facing_right = (self.facing == 1)
-        if self.render_mirror:
-            facing_right = not facing_right
-        anims = self.anims if facing_right else self.anims_l
+        anims = self.anims if self.facing == 1 else self.anims_l
         frames = anims[self.state]
         idx = int(self.frame) % len(frames)
         return frames[idx]
 
     def draw(self, surf):
-        # портал под ногами во время полёта (в цвет выстрелов)
         if self.flying and self.flight_cfg:
             import math
             col = self.flight_cfg.get("color", (120, 170, 255))
@@ -1182,14 +1102,10 @@ class Boss:
                                 (pw // 2 - 50, ph // 2 - 18, 100, 36), 3)
             surf.blit(portal, (cx - pw // 2, cy - ph // 2))
 
-        # вздрагивание: если есть анимация flinch и босс жив — играем её
         use_flinch = (self.hurt_timer > 0 and not self.dead
                       and "flinch" in self.anims)
         if use_flinch:
-            facing_right = (self.facing == 1)
-            if self.render_mirror:
-                facing_right = not facing_right
-            anims = self.anims if facing_right else self.anims_l
+            anims = self.anims if self.facing == 1 else self.anims_l
             ff = anims["flinch"]
             idx = min(int((1 - self.hurt_timer / 14.0) * len(ff)), len(ff) - 1)
             frame = ff[idx]

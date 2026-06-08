@@ -1,4 +1,3 @@
-"""Прогон без окна: проверяем загрузку ассетов, музыку и отрисовку."""
 import os
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
@@ -14,17 +13,14 @@ from entities import Player, Boss, Fireball, Projectile
 
 surf = pygame.Surface((C.VIRTUAL_W, C.VIRTUAL_H))
 
-# музыка генерируется
 music.ensure_generated()
 print("music files:", os.listdir(os.path.join(os.path.dirname(__file__), "music")))
 
-# ассеты
 pa = assets.load_player_anims()
 print("player anims:", {k: len(v) for k, v in pa.items()})
 b1 = assets.load_boss1_anims(C.BOSS_FINAL_SCALE)
 print("boss1 anims:", {k: len(v) for k, v in b1.items()})
 
-# прогон каждого типа босса
 for i, data in enumerate(C.BOSSES):
     is_final = (i == 6)
     scale = C.BOSS_FINAL_SCALE if is_final else C.BOSS_SCALE
@@ -49,11 +45,9 @@ for i, data in enumerate(C.BOSSES):
             if pr.rect.colliderect(p.rect):
                 p.take_damage(pr.damage, direct=True)
         projectiles = [pr for pr in projectiles if pr.alive]
-        # отрисовка
         b.draw(surf); p.draw(surf)
         for pr in projectiles:
             pr.draw(surf)
-        # урон боссу
         if fr % 10 == 0:
             b.take_damage(2)
     print("boss %d (%s/%s): dead=%s proj_spawned~%d  player_hp=%d shield_cd=%d"
