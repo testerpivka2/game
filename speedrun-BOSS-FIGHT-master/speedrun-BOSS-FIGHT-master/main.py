@@ -88,12 +88,44 @@ def draw_bar(surf, x, y, w, h, frac, color, bg=(40, 40, 48)):
     pygame.draw.rect(surf, C.WHITE, (x, y, w, h), 2, border_radius=4)
 
 
+def clamp01(v):
+    return max(0.0, min(1.0, v))
+
+
+def draw_button(surf, rect, label, font_obj, fill, outline, text_col=C.WHITE):
+    pygame.draw.rect(surf, fill, rect, border_radius=12)
+    pygame.draw.rect(surf, outline, rect, 3, border_radius=12)
+    text(surf, label, font_obj, text_col, center=rect.center)
+
+
+def draw_art_meter(surf, icon_name, bar_name, x, y, value, max_value,
+                   label_text, value_text, fill_w=300, *args, **kwargs):
+    # Simple rectangular bar: fallback to original behaviour before framed assets
+    frac = clamp01(value / max_value) if max_value else 0.0
+    w = fill_w
+    h = 28
+    col = (200, 40, 40) if "HP" in label_text.upper() else (40, 120, 220)
+    draw_bar(surf, x, y, w, h, frac, col)
+    # draw label inside bar (left) and value centered inside bar
+    text(surf, label_text, F_TINY, C.WHITE, topleft=(x + 8, y + (h - F_TINY.get_height()) // 2))
+    text(surf, value_text, F_SMALL, C.WHITE, center=(x + w // 2, y + h // 2))
+
+
+def set_pause_volume_from_x(x):
+    if GAME.pause_slider.width <= 0:
+        return
+    rel = (x - GAME.pause_slider.x) / GAME.pause_slider.width
+    GAME.volume = clamp01(rel)
+    music.set_volume(GAME.volume)
+
+
 # =====================================================================
 #  СОСТОЯНИЕ ИГРЫ
 # =====================================================================
 class Game:
     def __init__(self):
         self.state = "MENU"
+        self.paused_from = None
         self.player = None
         self.difficulty = "MEDIUM"
         self.boss_index = 0           # какой босс впереди (0..6)
@@ -109,6 +141,7 @@ class Game:
         self.boss_fight_time = 0.0
         self.hp_at_boss_start = 0
         self.bg_cache = {}
+        self.volume = 0.45
 
         self.last_reward = {}         # для экрана награды
         self.last_skill = None
@@ -117,11 +150,14 @@ class Game:
         self.princess_level = None
         self.menu_buttons = []
         self.shop_buttons = []
+        self.pause_buttons = []
+        self.pause_slider = pygame.Rect(0, 0, 0, 0)
+        self.pause_dragging = False
 
     # ---------- запуск новой игры ----------
-    def start_new(self, difficulty):
+    def start_new(self, difficulty="MEDIUM"):
         self.difficulty = difficulty
-        hp = C.DIFFICULTIES[difficulty]["hp"]
+        hp = C.DIFFICULTIES.get(difficulty, C.DIFFICULTIES.get("MEDIUM"))["hp"]
         self.player = Player(hp)
         self.boss_index = 0
         self.total_time = 0.0
@@ -145,6 +181,18 @@ class Game:
     def enter_shop(self):
         self.state = "SHOP"
         self.shop_msg = ""
+
+    def enter_pause(self):
+        if self.state == "BATTLE":
+            self.paused_from = self.state
+            self.state = "PAUSE"
+            self.pause_dragging = False
+
+    def resume_from_pause(self):
+        if self.state == "PAUSE":
+            self.state = self.paused_from or "BATTLE"
+            self.paused_from = None
+            self.pause_dragging = False
 
     def buy(self, item):
         iid = item["id"]
@@ -270,10 +318,10 @@ GAME = Game()
 #  ЭКРАНЫ
 # =====================================================================
 def draw_menu(surf, mouse):
-    bg = GAME.get_bg("assets_bg/bg5.png", (C.VIRTUAL_W, C.VIRTUAL_H))
+    bg = GAME.get_bg("assets_bg/menubg.png", (C.VIRTUAL_W, C.VIRTUAL_H))
     surf.blit(bg, (0, 0))
     overlay = pygame.Surface((C.VIRTUAL_W, C.VIRTUAL_H), pygame.SRCALPHA)
-    overlay.fill((0, 0, 0, 120))
+    overlay.fill((0, 0, 0, 105))
     surf.blit(overlay, (0, 0))
 
     text(surf, "ПУТЬ САМУРАЯ", F_HUGE, C.GOLD, center=(C.VIRTUAL_W // 2, 90))
@@ -285,37 +333,89 @@ def draw_menu(surf, mouse):
         "",
         "← / → — ход,  ↑ — прыжок (двойное нажатие ↑ = дабл-прыжок)",
         "D — присесть,  A — атака (комбо),  W — щит,  Q — файрбол",
-        "Shift — рывок,  R — бессмертие (чит)",
+        "Shift — рывок,  R — бессмертие (чит),  Esc — пауза",
         "Прыжок в стену — цепляешься и сползаешь; прыжок от стены — лезешь выше",
         "У каждого босса своя способность — следи за снарядами!",
         "",
-        "Выбери сложность:",
     ]
     y = 150
     for ln in lines:
         text(surf, ln, F_SMALL, C.WHITE, center=(C.VIRTUAL_W // 2, y))
         y += 30
 
-    # кнопки сложности
+    # кнопки сложности (сдвинуты вниз и увеличены)
     GAME.menu_buttons = []
     diffs = [("EASY", C.GREEN), ("MEDIUM", C.GOLD), ("HARD", C.RED)]
-    bw, bh = 280, 70
-    total = len(diffs) * bw + (len(diffs) - 1) * 30
+    bw, bh = 340, 90
+    gap = 40
+    total = len(diffs) * bw + (len(diffs) - 1) * gap
     x0 = (C.VIRTUAL_W - total) // 2
-    by = 480
+    by = 500
     for i, (d, col) in enumerate(diffs):
-        r = pygame.Rect(x0 + i * (bw + 30), by, bw, bh)
+        r = pygame.Rect(x0 + i * (bw + gap), by, bw, bh)
         hover = r.collidepoint(mouse)
         pygame.draw.rect(surf, (col if hover else (50, 50, 60)), r,
-                         border_radius=10)
-        pygame.draw.rect(surf, col, r, 3, border_radius=10)
+                         border_radius=12)
+        pygame.draw.rect(surf, col, r, 4, border_radius=12)
         label = "%s — %d HP" % (C.DIFFICULTIES[d]["label"],
                                 C.DIFFICULTIES[d]["hp"])
         text(surf, label, F_MED, C.WHITE, center=r.center)
         GAME.menu_buttons.append((r, d))
 
-    text(surf, "Кликни по сложности, чтобы начать.  ESC — выход",
-         F_TINY, C.WHITE, center=(C.VIRTUAL_W // 2, 600))
+    # кнопка выхода расположена ниже
+    exit_btn = pygame.Rect(C.VIRTUAL_W // 2 - 180, by + bh + 22, 360, 72)
+    hover = exit_btn.collidepoint(mouse)
+    draw_button(surf, exit_btn, "ВЫХОД ИЗ ИГРЫ", F_MED,
+                (120, 40, 40) if hover else (80, 30, 30),
+                C.WHITE if hover else C.GREY)
+    GAME.menu_buttons.append((exit_btn, {"id": "__quit__"}))
+
+    text_y = exit_btn.y + exit_btn.height + 12
+    text(surf, "Кликни по сложности, чтобы начать.",
+         F_TINY, C.WHITE, center=(C.VIRTUAL_W // 2, text_y))
+
+
+def draw_pause(surf, mouse):
+    overlay = pygame.Surface((C.VIRTUAL_W, C.VIRTUAL_H), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 165))
+    surf.blit(overlay, (0, 0))
+
+    panel = pygame.Rect(C.VIRTUAL_W // 2 - 250, C.VIRTUAL_H // 2 - 190, 500, 380)
+    pygame.draw.rect(surf, (24, 20, 34), panel, border_radius=18)
+    pygame.draw.rect(surf, C.GOLD, panel, 3, border_radius=18)
+
+    text(surf, "ПАУЗА", F_HUGE, C.GOLD, center=(C.VIRTUAL_W // 2, panel.y + 55))
+
+    GAME.pause_buttons = []
+    btn_w, btn_h = 320, 56
+    btn_x = C.VIRTUAL_W // 2 - btn_w // 2
+    y0 = panel.y + 120
+    buttons = [
+        (pygame.Rect(btn_x, y0, btn_w, btn_h), "Продолжить", "continue", (60, 110, 70)),
+        (pygame.Rect(btn_x, y0 + 70, btn_w, btn_h), "Выйти в меню", "menu", (110, 80, 40)),
+    ]
+    for rect, label, action, fill in buttons:
+        hover = rect.collidepoint(mouse)
+        draw_button(surf, rect, label, F_MED,
+                    fill if hover else tuple(max(0, c - 20) for c in fill),
+                    C.GOLD if hover else C.WHITE)
+        GAME.pause_buttons.append((rect, action))
+
+    # Громкость: сдвинута немного выше, чтобы не наслаиваться с кнопками
+    slider_w = 340
+    slider_y = panel.y + 300
+    text(surf, "Громкость", F_MED, C.WHITE, center=(C.VIRTUAL_W // 2, slider_y - 26))
+    GAME.pause_slider = pygame.Rect(C.VIRTUAL_W // 2 - slider_w // 2, slider_y, slider_w, 14)
+    pygame.draw.rect(surf, (60, 60, 72), GAME.pause_slider, border_radius=8)
+    fill_rect = pygame.Rect(GAME.pause_slider.x, GAME.pause_slider.y,
+                            int(GAME.pause_slider.width * GAME.volume), GAME.pause_slider.height)
+    pygame.draw.rect(surf, C.GOLD, fill_rect, border_radius=8)
+    pygame.draw.rect(surf, C.WHITE, GAME.pause_slider, 2, border_radius=8)
+    knob_x = GAME.pause_slider.x + int(GAME.pause_slider.width * GAME.volume)
+    knob = pygame.Rect(knob_x - 8, GAME.pause_slider.y - 8, 16, 30)
+    pygame.draw.rect(surf, C.WHITE, knob, border_radius=6)
+    text(surf, "%d%%" % int(GAME.volume * 100), F_SMALL, C.WHITE,
+         center=(C.VIRTUAL_W // 2, slider_y + 28))
 
 
 def draw_shop(surf, mouse):
@@ -377,23 +477,20 @@ def draw_shop(surf, mouse):
 
 def draw_hud(surf):
     p = GAME.player
-    # HP — полоска с числом справа сверху
-    bar_w, bar_h = 280, 26
-    bx = C.VIRTUAL_W - bar_w - 30
-    by = 28
-    draw_bar(surf, bx, by, bar_w, bar_h, p.hp / p.max_hp, C.RED)
-    text(surf, "HP %d/%d" % (p.hp, p.max_hp), F_SMALL, C.WHITE,
-         center=(bx + bar_w // 2, by + bar_h // 2))
-    # монеты
-    text(surf, "Монеты: %d" % p.coins, F_MED, C.GOLD,
-         topleft=(C.VIRTUAL_W - 240, 66))
-    # мана — полоска с числом слева сверху (как HP)
+    # Draw framed HP/MP bars using artwork: frame (hp1/mp1) and fill (hp2/mp2)
+    bar_w = 340
+    hp_x = C.VIRTUAL_W - (bar_w + 20)
+    hud_y = 14
+    draw_art_meter(surf, "assets_ui/hp1.png", "assets_ui/hp2.png",
+                hp_x, hud_y, p.hp, p.max_hp,
+                "HP", "%d/%d" % (p.hp, p.max_hp), fill_w=bar_w)
     if p.max_mana > 0:
-        mbw, mbh = 240, 22
-        mbx, mby = 30, 30
-        draw_bar(surf, mbx, mby, mbw, mbh, p.mana / p.max_mana, C.BLUE)
-        text(surf, "MANA %d/%d" % (int(p.mana), int(p.max_mana)),
-             F_SMALL, C.WHITE, center=(mbx + mbw // 2, mby + mbh // 2))
+        draw_art_meter(surf, "assets_ui/mp1.png", "assets_ui/mp2.png",
+                    20, hud_y, p.mana, p.max_mana,
+                    "MP", "%d/%d" % (int(p.mana), int(p.max_mana)), fill_w=bar_w)
+
+    text(surf, "Монеты: %d" % p.coins, F_MED, C.GOLD,
+        topleft=(C.VIRTUAL_W - 240, 70))
 
     # статусы способностей слева снизу (стопкой)
     yb = C.VIRTUAL_H - 40
@@ -658,8 +755,12 @@ def handle_event(e):
     if e.type == pygame.QUIT:
         pygame.quit(); sys.exit()
     if e.type == pygame.KEYDOWN:
-        if e.key == pygame.K_ESCAPE:
-            pygame.quit(); sys.exit()
+        if GAME.state == "BATTLE" and e.key == pygame.K_ESCAPE:
+            GAME.enter_pause()
+            return
+        if GAME.state == "PAUSE" and e.key == pygame.K_ESCAPE:
+            GAME.resume_from_pause()
+            return
         if GAME.state == "BATTLE":
             p = GAME.player
             if e.key == pygame.K_UP:
@@ -676,6 +777,8 @@ def handle_event(e):
                 fb = p.try_fireball()
                 if fb:
                     GAME.fireballs.append(fb)
+        elif GAME.state == "PAUSE":
+            pass
         elif GAME.state == "REWARD":
             if e.key == pygame.K_SPACE:
                 GAME.next_after_reward()
@@ -688,7 +791,10 @@ def handle_event(e):
         if GAME.state == "MENU":
             for r, d in GAME.menu_buttons:
                 if r.collidepoint(mv):
-                    GAME.start_new(d)
+                    if isinstance(d, dict) and d.get("id") == "__quit__":
+                        pygame.quit(); sys.exit()
+                    else:
+                        GAME.start_new(d)
         elif GAME.state == "SHOP":
             for r, item in GAME.shop_buttons:
                 if r.collidepoint(mv):
@@ -696,6 +802,25 @@ def handle_event(e):
                         GAME.start_battle()
                     else:
                         GAME.buy(item)
+        elif GAME.state == "PAUSE":
+            for r, action in GAME.pause_buttons:
+                if r.collidepoint(mv):
+                    if action == "continue":
+                        GAME.resume_from_pause()
+                    elif action == "menu":
+                        GAME.state = "MENU"
+                        GAME.paused_from = None
+                    return
+            if GAME.pause_slider.collidepoint(mv):
+                GAME.pause_dragging = True
+                set_pause_volume_from_x(mv[0])
+
+    if e.type == pygame.MOUSEBUTTONUP and GAME.state == "PAUSE":
+        GAME.pause_dragging = False
+
+    if e.type == pygame.MOUSEMOTION and GAME.state == "PAUSE" and GAME.pause_dragging:
+        mv = to_virt(e.pos)
+        set_pause_volume_from_x(mv[0])
 
 
 # =====================================================================
@@ -710,14 +835,16 @@ def main():
         keys = pygame.key.get_pressed()
         mouse_v = to_virt(pygame.mouse.get_pos())
 
-        # курсор виден только там, где нужно кликать (меню/магазин)
-        pygame.mouse.set_visible(GAME.state in ("MENU", "SHOP"))
+        # курсор виден только там, где нужно кликать (меню/магазин/пауза)
+        pygame.mouse.set_visible(GAME.state in ("MENU", "SHOP", "PAUSE"))
 
         # музыка по состоянию
-        if GAME.state == "BATTLE":
-            music.play("battle", 0.45)
+        music.set_volume(GAME.volume)
+        if GAME.state == "PAUSE":
+            track = "pause"
         else:
-            music.play("main", 0.4)
+            track = "battle" if GAME.state == "BATTLE" else "main"
+        music.play(track, GAME.volume)
 
         if GAME.state == "BATTLE":
             update_battle(dt, keys)
@@ -730,6 +857,9 @@ def main():
             draw_shop(virt, mouse_v)
         elif GAME.state == "BATTLE":
             draw_battle(virt)
+        elif GAME.state == "PAUSE":
+            draw_battle(virt)
+            draw_pause(virt, mouse_v)
         elif GAME.state == "REWARD":
             draw_reward(virt)
         elif GAME.state == "WIN":

@@ -563,6 +563,7 @@ class Boss:
         self.anims = anims
         self.anims_l = {k: assets.flip(v) for k, v in anims.items()}
         self.foot_pad = assets.bottom_pad(anims["idle"][0])
+        self.render_mirror = (self.btype == "demon")
 
         self.x = C.VIRTUAL_W - 300
         self.y = C.GROUND_Y
@@ -1156,7 +1157,10 @@ class Boss:
             self.frame = 0.0
 
     def current_frame(self):
-        anims = self.anims if self.facing == 1 else self.anims_l
+        facing_right = (self.facing == 1)
+        if self.render_mirror:
+            facing_right = not facing_right
+        anims = self.anims if facing_right else self.anims_l
         frames = anims[self.state]
         idx = int(self.frame) % len(frames)
         return frames[idx]
@@ -1182,7 +1186,10 @@ class Boss:
         use_flinch = (self.hurt_timer > 0 and not self.dead
                       and "flinch" in self.anims)
         if use_flinch:
-            anims = self.anims if self.facing == 1 else self.anims_l
+            facing_right = (self.facing == 1)
+            if self.render_mirror:
+                facing_right = not facing_right
+            anims = self.anims if facing_right else self.anims_l
             ff = anims["flinch"]
             idx = min(int((1 - self.hurt_timer / 14.0) * len(ff)), len(ff) - 1)
             frame = ff[idx]

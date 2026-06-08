@@ -93,6 +93,40 @@ def scale_bg(name, size):
     return pygame.transform.scale(img, size)
 
 
+def get_inner_bbox(surface, inset=6):
+    """Return bounding Rect of non-transparent pixels, inset by `inset`.
+    Coordinates are relative to the surface (0,0).
+    """
+    try:
+        mask = pygame.mask.from_surface(surface)
+    except Exception:
+        return pygame.Rect(0, 0, 0, 0)
+    w, h = mask.get_size()
+    minx, miny = w, h
+    maxx, maxy = -1, -1
+    for y in range(h):
+        for x in range(w):
+            if mask.get_at((x, y)):
+                if x < minx:
+                    minx = x
+                if x > maxx:
+                    maxx = x
+                if y < miny:
+                    miny = y
+                if y > maxy:
+                    maxy = y
+    if maxx == -1:
+        return pygame.Rect(0, 0, 0, 0)
+    # apply inset
+    minx += inset
+    miny += inset
+    maxx -= inset
+    maxy -= inset
+    if maxx < minx or maxy < miny:
+        return pygame.Rect(minx, miny, max(0, maxx - minx + 1), max(0, maxy - miny + 1))
+    return pygame.Rect(minx, miny, maxx - minx + 1, maxy - miny + 1)
+
+
 # --------- Готовые наборы анимаций ----------
 PLAYER_DIR = "assets_player"
 BOSS_FALLBACK = "assets_boss1"   # заглушка для пустых папок боссов (боец 1-й лок.)
@@ -122,11 +156,13 @@ def load_grid_anim(folder, file, fw, fh, scale=1.0):
         for c in range(cols):
             fr = pygame.Surface((fw, fh), pygame.SRCALPHA)
             fr.blit(sheet, (0, 0), pygame.Rect(c * fw, r * fh, fw, fh))
+            if not pygame.mask.from_surface(fr, 1).count():
+                continue
             if scale != 1.0:
                 fr = pygame.transform.scale(
                     fr, (max(1, int(fw * scale)), max(1, int(fh * scale))))
             frames.append(fr)
-    return frames
+    return frames or [pygame.Surface((max(1, int(fw * scale)), max(1, int(fh * scale))), pygame.SRCALPHA)]
 
 
 def load_boss_spec_anims(folder):

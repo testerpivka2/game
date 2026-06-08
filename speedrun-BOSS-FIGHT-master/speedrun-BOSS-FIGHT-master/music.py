@@ -13,6 +13,7 @@ MUSIC_DIR = os.path.join(HERE, "music")
 # ---------------- менеджер ----------------
 _inited = False
 _current = None
+_volume = 0.4
 
 
 def _find(name):
@@ -32,6 +33,9 @@ def ensure_tracks_exist():
         print("music missing: expected music/main.(ogg|mp3|wav)")
     if not _find("battle"):
         print("music missing: expected music/battle.(ogg|mp3|wav)")
+    if not _find("pause"):
+        # optional pause track
+        print("music missing: optional music/pause.(ogg|mp3|wav)")
 
 
 def init():
@@ -46,12 +50,24 @@ def init():
     ensure_tracks_exist()
 
 
-def play(name, volume=0.1):
+def set_volume(volume):
+    global _volume
+    _volume = max(0.0, min(1.0, float(volume)))
+    if _inited:
+        import pygame
+        pygame.mixer.music.set_volume(_volume)
+
+
+def play(name, volume=None):
     """name: 'main' или 'battle' (также поддерживается алиас 'calm')."""
     global _current
+    if volume is not None:
+        set_volume(volume)
     if not _inited:
         return
     if _current == name:
+        import pygame
+        pygame.mixer.music.set_volume(_volume)
         return
     path = _find(name)
     if not path:
@@ -59,7 +75,7 @@ def play(name, volume=0.1):
     import pygame
     try:
         pygame.mixer.music.load(path)
-        pygame.mixer.music.set_volume(volume)
+        pygame.mixer.music.set_volume(_volume)
         pygame.mixer.music.play(-1)
         _current = name
     except Exception as e:
