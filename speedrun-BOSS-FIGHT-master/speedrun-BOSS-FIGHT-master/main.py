@@ -283,8 +283,9 @@ def draw_menu(surf, mouse):
         "За каждого босса: монеты (за скорость и HP) + новое умение.",
         "7-й босс хранит Принцессу — чем быстрее победишь, тем она умнее.",
         "",
-        "A / D — ход,  W/Space — прыжок,  S — присесть,  F — атака (комбо)",
-        "G — щит (блок одного удара),  E — файрбол,  Shift — рывок",
+        "← / → — ход,  ↑ — прыжок (двойное нажатие ↑ = дабл-прыжок)",
+        "D — присесть,  A — атака (комбо),  W — щит,  Q — файрбол",
+        "Shift — рывок,  R — бессмертие (чит)",
         "Прыжок в стену — цепляешься и сползаешь; прыжок от стены — лезешь выше",
         "У каждого босса своя способность — следи за снарядами!",
         "",
@@ -401,7 +402,7 @@ def draw_hud(surf):
     elif p.shield_cd > 0:
         sh_txt, sh_col = "ЩИТ: %.1fс" % (p.shield_cd / 60.0), C.GREY
     else:
-        sh_txt, sh_col = "ЩИТ (G): готов", (140, 210, 255)
+        sh_txt, sh_col = "ЩИТ (W): готов", (140, 210, 255)
     text(surf, sh_txt, F_SMALL, sh_col, topleft=(30, yb))
     yb -= 28
     if "fireball" in p.skills:
@@ -410,7 +411,7 @@ def draw_hud(surf):
         elif p.mana < 1:
             fb_txt, fb_col = "ФАЙРБОЛ: нет маны", C.GREY
         else:
-            fb_txt, fb_col = "ФАЙРБОЛ (E): готов", (255, 160, 80)
+            fb_txt, fb_col = "ФАЙРБОЛ (Q): готов", (255, 160, 80)
         text(surf, fb_txt, F_SMALL, fb_col, topleft=(30, yb))
         yb -= 28
     if "fire_aura" in p.skills:
@@ -423,7 +424,7 @@ def draw_hud(surf):
 
     # индикатор бессмертия
     if p.god_mode:
-        text(surf, "БЕССМЕРТИЕ (P)", F_SMALL, (120, 255, 160),
+        text(surf, "БЕССМЕРТИЕ (R)", F_SMALL, (120, 255, 160),
              topleft=(30, yb))
 
     # таймер по центру (общий)
@@ -661,17 +662,17 @@ def handle_event(e):
             pygame.quit(); sys.exit()
         if GAME.state == "BATTLE":
             p = GAME.player
-            if e.key in (pygame.K_SPACE, pygame.K_w):
+            if e.key == pygame.K_UP:
                 p.jump()
-            if e.key == pygame.K_f:
+            if e.key == pygame.K_a:
                 p.start_attack()
             if e.key == pygame.K_LSHIFT or e.key == pygame.K_RSHIFT:
                 p.start_dash()
-            if e.key == pygame.K_g:
+            if e.key == pygame.K_w:
                 p.start_shield()
-            if e.key == pygame.K_p:
+            if e.key == pygame.K_r:
                 p.god_mode = not p.god_mode   # чит: бессмертие
-            if e.key == pygame.K_e:
+            if e.key == pygame.K_q:
                 fb = p.try_fireball()
                 if fb:
                     GAME.fireballs.append(fb)
@@ -716,7 +717,7 @@ def main():
         if GAME.state == "BATTLE":
             music.play("battle", 0.45)
         else:
-            music.play("calm", 0.4)
+            music.play("main", 0.4)
 
         if GAME.state == "BATTLE":
             update_battle(dt, keys)

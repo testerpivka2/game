@@ -215,7 +215,7 @@ class Player:
         self.wall_side = None      # 'left' или 'right'
         self.wall_jump_vx = 0.0
 
-        # щит (доступен сразу, клавиша G)
+        # щит (доступен сразу, клавиша W)
         self.shield_up = False
         self.shield_timer = 0
         self.shield_cd = 0
@@ -223,7 +223,7 @@ class Player:
         # кулдаун файрбола
         self.fire_cd = 0
 
-        # чит: бессмертие (клавиша P)
+        # чит: бессмертие (клавиша R)
         self.god_mode = False
 
         # умения
@@ -353,15 +353,15 @@ class Player:
         else:
             # горизонтальное движение (работает и в воздухе — для возврата к стене)
             if not (self.attacking and self.on_ground):
-                if keys[pygame.K_a]:
+                if keys[pygame.K_LEFT]:
                     self.x -= self.speed
                     self.facing = -1
                     moving = True
-                if keys[pygame.K_d]:
+                if keys[pygame.K_RIGHT]:
                     self.x += self.speed
                     self.facing = 1
                     moving = True
-            self.crouch = keys[pygame.K_s] and self.on_ground
+            self.crouch = keys[pygame.K_d] and self.on_ground
 
         # остаточный толчок после отталкивания от стены (затухает)
         if self.wall_jump_vx != 0:
@@ -388,8 +388,8 @@ class Player:
         # --- прилипание к стене и сползание ---
         self.wall_sliding = False
         if (not self.on_ground and not self.dashing and self.vy > 0):
-            at_left = self.x <= left + 2 and keys[pygame.K_a]
-            at_right = self.x >= right - 2 and keys[pygame.K_d]
+            at_left = self.x <= left + 2 and keys[pygame.K_LEFT]
+            at_right = self.x >= right - 2 and keys[pygame.K_RIGHT]
             if at_left or at_right:
                 self.wall_sliding = True
                 self.wall_side = "left" if at_left else "right"
